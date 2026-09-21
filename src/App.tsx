@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { bulkSetStatus } from "@/api/client";
 import { AssetDetail } from "@/features/assets/AssetDetail";
 import { AssetGrid } from "@/features/assets/AssetGrid";
@@ -101,11 +102,8 @@ export function App() {
       if (next.has(id)) next.delete(id);
       else next.add(id);
 
-      // RCA FIX: If we just deselected an item, the anchor should fall back
-      // to the most recently selected item that is still active in our Set.
-      // JS Sets maintain insertion order, so we can just grab the last item!
       const arr = Array.from(next);
-      setLastSelectedId(arr.length > 0 ? arr[arr.length - 1] : null);
+      setLastSelectedId(arr.length > 0 ? (arr[arr.length - 1] ?? null) : null);
 
       return next;
     });
@@ -115,16 +113,111 @@ export function App() {
     setSelectedIds(new Set(items.map((i) => i.id)));
   }
 
+  const queryClient = useQueryClient();
+
   async function applyBulkStatus(next: AssetStatus) {
     const ids = [...selectedIds];
     if (ids.length === 0) return;
+
     setNotice(null);
+    setSelectedIds(new Set()); // Optimistically clear selection
+
+    // 1. Optimistic Update
+    const previousState = new Map<string, AssetStatus>();
+    queryClient.setQueriesData({ queryKey: ["assets"] }, (oldData: any) => {
+      if (!oldData) return oldData;
+      return {
+        ...oldData,
+        pages: oldData.pages.map((page: any) => ({
+          ...page,
+          items: page.items.map((asset: Asset) => {
+            if (ids.includes(asset.id)) {
+              previousState.set(asset.id, asset.status);
+              return { ...asset, status: next };
+            }
+            return asset;
+          }),
+        })),
+      };
+    });
+
     try {
-      // Sends every selected id in one call, which the API refuses above 50.
-      const result = await bulkSetStatus(ids, next);
-      setNotice(`${result.applied} updated, ${result.failed} failed.`);
-      setSelectedIds(new Set());
+      // 2. Chunking & Bounded Concurrency (max 50 per request, max 3 requests at a time)
+      const chunks: string[][] = [];
+      for (let i = 0; i < ids.length; i += 50)
+        chunks.push(ids.slice(i, i + 50));
+
+      let totalApplied = 0;
+      const failures: { id: string; code: string }[] = [];
+
+      for (let i = 0; i < chunks.length; i += 3) {
+        const batch = chunks.slice(i, i + 3);
+        const results = await Promise.all(
+          batch.map((chunk) => bulkSetStatus(chunk, next)),
+        );
+        for (const res of results) {
+          totalApplied += res.applied;
+          res.results.forEach((r) => {
+            if (!r.ok) failures.push({ id: r.id, code: r.code });
+          });
+        }
+      }
+
+      // 3. Partial Failure Revert & Retry Recovery
+      if (failures.length > 0) {
+        const failedIds = new Set(failures.map((f) => f.id));
+        queryClient.setQueriesData({ queryKey: ["assets"] }, (oldData: any) => {
+          if (!oldData) return oldData;
+          return {
+            ...oldData,
+            pages: oldData.pages.map((page: any) => ({
+              ...page,
+              items: page.items.map((asset: Asset) => {
+                if (failedIds.has(asset.id)) {
+                  return {
+                    ...asset,
+                    status: previousState.get(asset.id) ?? asset.status,
+                  };
+                }
+                return asset;
+              }),
+            })),
+          };
+        });
+
+        // Separate non-recoverable (legal-hold) from transient errors
+        const legalHoldCount = failures.filter(
+          (f) => f.code === "legal_hold",
+        ).length;
+        const retryableFailures = failures.filter(
+          (f) => f.code !== "legal_hold",
+        );
+
+        // Auto-select only the retryable ones for the user to try again
+        setSelectedIds(new Set(retryableFailures.map((f) => f.id)));
+        setNotice(
+          `Updated ${totalApplied}. Failed ${failures.length} (${legalHoldCount} locked by legal-hold, ${retryableFailures.length} transient errors re-selected for retry).`,
+        );
+      } else {
+        setNotice(`${totalApplied} updated successfully.`);
+      }
     } catch (err) {
+      // Full network failure: Rollback EVERYTHING
+      queryClient.setQueriesData({ queryKey: ["assets"] }, (oldData: any) => {
+        if (!oldData) return oldData;
+        return {
+          ...oldData,
+          pages: oldData.pages.map((page: any) => ({
+            ...page,
+            items: page.items.map((asset: Asset) => {
+              if (previousState.has(asset.id)) {
+                return { ...asset, status: previousState.get(asset.id)! };
+              }
+              return asset;
+            }),
+          })),
+        };
+      });
       setNotice(err instanceof Error ? err.message : "Bulk update failed");
     }
   }
