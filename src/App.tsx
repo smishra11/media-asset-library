@@ -36,6 +36,7 @@ export function App() {
     initial.sort,
   );
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -74,13 +75,44 @@ export function App() {
     limit: 24,
   });
 
-  function toggleSelect(id: string) {
+  function toggleSelect(id: string, shiftKey: boolean = false) {
+    if (shiftKey && lastSelectedId) {
+      const startIdx = items.findIndex((i) => i.id === lastSelectedId);
+      const endIdx = items.findIndex((i) => i.id === id);
+      if (startIdx !== -1 && endIdx !== -1) {
+        const min = Math.min(startIdx, endIdx);
+        const max = Math.max(startIdx, endIdx);
+        const rangeIds = items.slice(min, max + 1).map((i) => i.id);
+
+        setSelectedIds((prev) => {
+          const next = new Set(prev);
+          rangeIds.forEach((rId) => next.add(rId));
+
+          // Update anchor to the newly clicked item
+          setLastSelectedId(id);
+          return next;
+        });
+        return;
+      }
+    }
+
     setSelectedIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
+
+      // RCA FIX: If we just deselected an item, the anchor should fall back
+      // to the most recently selected item that is still active in our Set.
+      // JS Sets maintain insertion order, so we can just grab the last item!
+      const arr = Array.from(next);
+      setLastSelectedId(arr.length > 0 ? arr[arr.length - 1] : null);
+
       return next;
     });
+  }
+
+  function selectAllLoaded() {
+    setSelectedIds(new Set(items.map((i) => i.id)));
   }
 
   async function applyBulkStatus(next: AssetStatus) {
@@ -144,6 +176,13 @@ export function App() {
             ? "Loading…"
             : `${items.length} of ${total.toLocaleString()} shown`}
         </span>
+        <button
+          onClick={selectAllLoaded}
+          style={{ marginLeft: "auto" }}
+          disabled={items.length === 0}
+        >
+          Select all loaded
+        </button>
       </div>
 
       {selectedIds.size > 0 && (

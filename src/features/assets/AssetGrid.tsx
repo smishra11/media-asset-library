@@ -42,7 +42,7 @@ interface CardProps {
   asset: Asset;
   isSelected: boolean;
   isActive: boolean;
-  onToggleSelect: (id: string) => void;
+  onToggleSelect: (id: string, shiftKey: boolean) => void;
   onOpen: (id: string) => void;
 }
 
@@ -92,8 +92,11 @@ const MemoizedAssetCard = memo(function AssetCard({
         type="checkbox"
         className="card__check"
         checked={isSelected}
-        onClick={(e) => e.stopPropagation()}
-        onChange={() => onToggleSelect(asset.id)}
+        readOnly
+        onClick={(e) => {
+          e.stopPropagation();
+          onToggleSelect(asset.id, e.shiftKey);
+        }}
       />
     </div>
   );
@@ -103,7 +106,7 @@ interface Props {
   assets: Asset[];
   selectedIds: Set<string>;
   activeId: string | null;
-  onToggleSelect: (id: string) => void;
+  onToggleSelect: (id: string, shiftKey: boolean) => void;
   onOpen: (id: string) => void;
   hasNextPage?: boolean;
   fetchNextPage?: () => void;
