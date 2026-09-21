@@ -29,11 +29,11 @@ Roughly, and how you split it.
 | 1   | Bulk update sends >50 ids in one call                                             | `App.tsx`                     |                             |
 | 2   | Missing request cancellation causes search race conditions and stale UI           | `useAssets.ts`                |                             |
 | 3   | Search input fires requests on every keystroke (no debounce), tripping rate limit | `App.tsx`                     |                             |
-| 4   | Grid lacks virtualization/pagination; renders all fetched items at once           | `AssetGrid.tsx`               |                             |
-| 5   | Selection state changes re-render the entire grid unnecessarily                   | `App.tsx` / `AssetGrid.tsx`   |                             |
+| 4   | Grid lacks virtualization/pagination; renders all fetched items at once           | `AssetGrid.tsx`               | Fixed                       |
+| 5   | Selection state changes re-render the entire grid unnecessarily                   | `App.tsx` / `AssetGrid.tsx`   | Fixed                       |
 | 6   | Successful asset edits do not optimistically update the grid                      | `AssetDetail.tsx` / `App.tsx` |                             |
 | 7   | Grid is inaccessible via keyboard (no tabindex, no key handlers)                  | `AssetGrid.tsx`               |                             |
-| 8   | Missing thumbnails (`hasThumbnail: false`) cause broken images/layout shifts      | `AssetGrid.tsx`               |                             |
+| 8   | Missing thumbnails (`hasThumbnail: false`) cause broken images/layout shifts      | `AssetGrid.tsx`               | Fixed                       |
 | 9   | API errors are flattened into strings; no structural error handling or retries    | `api/client.ts`               |                             |
 | 10  | Focus is lost/not managed when opening and closing the detail panel               | `App.tsx` / `AssetDetail.tsx` |                             |
 
@@ -57,6 +57,10 @@ six of these is about right.
 - **Why:** Aborting the request at the network level is the cleanest and most reliable way to prevent race conditions (like a slow short query overwriting a fast long query), and it saves bandwidth.
 
 **Virtualization approach**
+
+- **Did:** Used `react-virtuoso`'s `<VirtuosoGrid>` to virtualize the CSS grid, paired with `useInfiniteQuery` for cursor pagination.
+- **Rejected:** Using `@tanstack/react-virtual` or rolling our own IntersectionObserver math.
+- **Why:** Responsive wrapping grids (using `auto-fill`) are notoriously difficult to virtualize because the column count changes on window resize. `react-virtuoso` natively handles responsive grids with zero math required, significantly reducing complexity and potential bugs.
 
 **Optimistic updates and rollback**
 

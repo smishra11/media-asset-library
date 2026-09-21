@@ -59,7 +59,15 @@ export function App() {
   }, [debouncedQ, status, sort]);
 
   // Pass debouncedQ instead of q to prevent excessive API calls
-  const { items, total, loading, error } = useAssets({
+  const {
+    items,
+    total,
+    loading,
+    error,
+    hasNextPage,
+    fetchNextPage,
+    isFetchingNextPage,
+  } = useAssets({
     q: debouncedQ,
     status,
     sort,
@@ -132,7 +140,7 @@ export function App() {
           </label>
         ))}
         <span className="muted">
-          {loading
+          {loading && items.length === 0
             ? "Loading…"
             : `${items.length} of ${total.toLocaleString()} shown`}
         </span>
@@ -171,6 +179,9 @@ export function App() {
             activeId={activeId}
             onToggleSelect={toggleSelect}
             onOpen={setActiveId}
+            hasNextPage={hasNextPage}
+            fetchNextPage={fetchNextPage}
+            isFetchingNextPage={isFetchingNextPage}
           />
         )}
         {activeId && (
