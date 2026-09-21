@@ -46,7 +46,15 @@ six of these is about right.
 
 **Data fetching and caching**
 
+- **Did:** Migrated the custom fetch hook to `@tanstack/react-query`.
+- **Rejected:** Building custom `useEffect` logic with our own loading/error states and deduplication.
+- **Why:** React Query handles deduplication, caching, and state management out of the box, keeping the component code extremely clean and providing a solid foundation for request cancellation and future retries.
+
 **Stale response handling**
+
+- **Did:** Passed the React Query `AbortSignal` directly into the native `fetch` client.
+- **Rejected:** Tracking request IDs or manually ignoring old responses in state.
+- **Why:** Aborting the request at the network level is the cleanest and most reliable way to prevent race conditions (like a slow short query overwriting a fast long query), and it saves bandwidth.
 
 **Virtualization approach**
 
@@ -55,6 +63,10 @@ six of these is about right.
 **Retry and backoff policy**
 
 **State placement and URL sync**
+
+- **Did:** Used native `URLSearchParams` and `history.replaceState` inside a `useEffect` in `App.tsx` to sync the filter state to the URL.
+- **Rejected:** Using a heavy routing library like `react-router-dom`.
+- **Why:** Since this is a simple single-page application with only a few query parameters, pulling in a large routing dependency would unnecessarily bloat the bundle size. Native browser APIs accomplish the sync perfectly with zero extra bytes.
 
 ---
 

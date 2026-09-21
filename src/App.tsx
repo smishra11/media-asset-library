@@ -1,29 +1,70 @@
-import { useState } from 'react';
-import { bulkSetStatus } from '@/api/client';
-import { AssetDetail } from '@/features/assets/AssetDetail';
-import { AssetGrid } from '@/features/assets/AssetGrid';
-import { useAssets } from '@/features/assets/useAssets';
-import { statusLabel } from '@/lib/format';
-import type { Asset, AssetStatus, AssetQuery } from '@/lib/types';
+import { useState, useEffect } from "react";
+import { bulkSetStatus } from "@/api/client";
+import { AssetDetail } from "@/features/assets/AssetDetail";
+import { AssetGrid } from "@/features/assets/AssetGrid";
+import { useAssets } from "@/features/assets/useAssets";
+import { statusLabel } from "@/lib/format";
+import type { Asset, AssetStatus, AssetQuery } from "@/lib/types";
 
-const STATUSES: AssetStatus[] = ['draft', 'in_review', 'approved', 'archived'];
-const SORTS: Array<{ value: NonNullable<AssetQuery['sort']>; label: string }> = [
-  { value: 'updatedAt:desc', label: 'Recently updated' },
-  { value: 'name:asc', label: 'Name A–Z' },
-  { value: 'sizeBytes:desc', label: 'Largest first' },
-  { value: 'createdAt:desc', label: 'Newest' },
-];
+const STATUSES: AssetStatus[] = ["draft", "in_review", "approved", "archived"];
+const SORTS: Array<{ value: NonNullable<AssetQuery["sort"]>; label: string }> =
+  [
+    { value: "updatedAt:desc", label: "Recently updated" },
+    { value: "name:asc", label: "Name A–Z" },
+    { value: "sizeBytes:desc", label: "Largest first" },
+    { value: "createdAt:desc", label: "Newest" },
+  ];
+
+function getInitialState() {
+  const params = new URLSearchParams(window.location.search);
+  const statusParam = params.get("status");
+  return {
+    q: params.get("q") || "",
+    status: statusParam ? (statusParam.split(",") as AssetStatus[]) : [],
+    sort:
+      (params.get("sort") as NonNullable<AssetQuery["sort"]>) ||
+      "updatedAt:desc",
+  };
+}
 
 export function App() {
-  const [q, setQ] = useState('');
-  const [status, setStatus] = useState<AssetStatus[]>([]);
-  const [sort, setSort] = useState<NonNullable<AssetQuery['sort']>>('updatedAt:desc');
+  const initial = getInitialState();
+  const [q, setQ] = useState(initial.q);
+  const [debouncedQ, setDebouncedQ] = useState(initial.q);
+  const [status, setStatus] = useState<AssetStatus[]>(initial.status);
+  const [sort, setSort] = useState<NonNullable<AssetQuery["sort"]>>(
+    initial.sort,
+  );
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [activeId, setActiveId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
-  // Every keystroke sends a request. Nothing is debounced or cancelled.
-  const { items, total, loading, error } = useAssets({ q, status, sort, limit: 24 });
+  // Debounce search input to avoid hitting rate limit
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedQ(q), 300);
+    return () => clearTimeout(timer);
+  }, [q]);
+
+  // Sync state to URL without reloading
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (debouncedQ) params.set("q", debouncedQ);
+    if (status.length) params.set("status", status.join(","));
+    if (sort !== "updatedAt:desc") params.set("sort", sort);
+
+    const newUrl = params.toString()
+      ? `?${params.toString()}`
+      : window.location.pathname;
+    window.history.replaceState(null, "", newUrl);
+  }, [debouncedQ, status, sort]);
+
+  // Pass debouncedQ instead of q to prevent excessive API calls
+  const { items, total, loading, error } = useAssets({
+    q: debouncedQ,
+    status,
+    sort,
+    limit: 24,
+  });
 
   function toggleSelect(id: string) {
     setSelectedIds((prev) => {
@@ -44,7 +85,7 @@ export function App() {
       setNotice(`${result.applied} updated, ${result.failed} failed.`);
       setSelectedIds(new Set());
     } catch (err) {
-      setNotice(err instanceof Error ? err.message : 'Bulk update failed');
+      setNotice(err instanceof Error ? err.message : "Bulk update failed");
     }
   }
 
@@ -63,7 +104,10 @@ export function App() {
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
-        <select value={sort} onChange={(e) => setSort(e.target.value as typeof sort)}>
+        <select
+          value={sort}
+          onChange={(e) => setSort(e.target.value as typeof sort)}
+        >
           {SORTS.map((option) => (
             <option key={option.value} value={option.value}>
               {option.label}
@@ -88,7 +132,9 @@ export function App() {
           </label>
         ))}
         <span className="muted">
-          {loading ? 'Loading…' : `${items.length} of ${total.toLocaleString()} shown`}
+          {loading
+            ? "Loading…"
+            : `${items.length} of ${total.toLocaleString()} shown`}
         </span>
       </div>
 
@@ -100,23 +146,39 @@ export function App() {
               Set {statusLabel(s).toLowerCase()}
             </button>
           ))}
-          <button onClick={() => setSelectedIds(new Set())}>Clear selection</button>
+          <button onClick={() => setSelectedIds(new Set())}>
+            Clear selection
+          </button>
         </div>
       )}
 
       {notice && <p className="notice">{notice}</p>}
-      {error && <p className="error">{error}</p>}
 
       <main className="content">
-        <AssetGrid
-          assets={items}
-          selectedIds={selectedIds}
-          activeId={activeId}
-          onToggleSelect={toggleSelect}
-          onOpen={setActiveId}
-        />
+        {error ? (
+          <div className="error-state">
+            <p>Failed to load assets.</p>
+            <p className="muted">{error}</p>
+          </div>
+        ) : loading && items.length === 0 ? (
+          <div className="loading-state">
+            <p>Loading assets...</p>
+          </div>
+        ) : (
+          <AssetGrid
+            assets={items}
+            selectedIds={selectedIds}
+            activeId={activeId}
+            onToggleSelect={toggleSelect}
+            onOpen={setActiveId}
+          />
+        )}
         {activeId && (
-          <AssetDetail id={activeId} onClose={() => setActiveId(null)} onSaved={handleSaved} />
+          <AssetDetail
+            id={activeId}
+            onClose={() => setActiveId(null)}
+            onSaved={handleSaved}
+          />
         )}
       </main>
     </div>
