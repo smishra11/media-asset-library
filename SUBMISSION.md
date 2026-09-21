@@ -24,10 +24,18 @@ Roughly, and how you split it.
 
 ## Baseline defects found
 
-| # | Defect | Where | Fixed / left / out of scope |
-| --- | --- | --- | --- |
-| 1 | Bulk update sends >50 ids in one call | `App.tsx` | |
-| 2 | | | |
+| #   | Defect                                                                            | Where                         | Fixed / left / out of scope |
+| --- | --------------------------------------------------------------------------------- | ----------------------------- | --------------------------- |
+| 1   | Bulk update sends >50 ids in one call                                             | `App.tsx`                     |                             |
+| 2   | Missing request cancellation causes search race conditions and stale UI           | `useAssets.ts`                |                             |
+| 3   | Search input fires requests on every keystroke (no debounce), tripping rate limit | `App.tsx`                     |                             |
+| 4   | Grid lacks virtualization/pagination; renders all fetched items at once           | `AssetGrid.tsx`               |                             |
+| 5   | Selection state changes re-render the entire grid unnecessarily                   | `App.tsx` / `AssetGrid.tsx`   |                             |
+| 6   | Successful asset edits do not optimistically update the grid                      | `AssetDetail.tsx` / `App.tsx` |                             |
+| 7   | Grid is inaccessible via keyboard (no tabindex, no key handlers)                  | `AssetGrid.tsx`               |                             |
+| 8   | Missing thumbnails (`hasThumbnail: false`) cause broken images/layout shifts      | `AssetGrid.tsx`               |                             |
+| 9   | API errors are flattened into strings; no structural error handling or retries    | `api/client.ts`               |                             |
+| 10  | Focus is lost/not managed when opening and closing the detail panel               | `App.tsx` / `AssetDetail.tsx` |                             |
 
 ---
 
@@ -54,13 +62,13 @@ six of these is about right.
 
 Fill in real measurements, not estimates. Say which machine and browser.
 
-| Metric | Before | After | How measured |
-| --- | --- | --- | --- |
-| Rendered DOM nodes at 5,000 rows loaded | | | |
-| Cards re-rendered when toggling one selection | | | |
-| Longest task during sustained scroll | | | |
-| Requests fired while typing a 6-character query | | | |
-| Production bundle, gzipped | | | |
+| Metric                                          | Before | After | How measured |
+| ----------------------------------------------- | ------ | ----- | ------------ |
+| Rendered DOM nodes at 5,000 rows loaded         |        |       |              |
+| Cards re-rendered when toggling one selection   |        |       |              |
+| Longest task during sustained scroll            |        |       |              |
+| Requests fired while typing a 6-character query |        |       |              |
+| Production bundle, gzipped                      |        |       |              |
 
 What was the actual bottleneck, and how did you find it?
 
