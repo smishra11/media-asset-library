@@ -26,12 +26,12 @@ Roughly, and how you split it.
 
 | #   | Defect                                                                            | Where                         | Fixed / left / out of scope |
 | --- | --------------------------------------------------------------------------------- | ----------------------------- | --------------------------- |
-| 1   | Bulk update sends >50 ids in one call                                             | `App.tsx`                     |                             |
+| 1   | Bulk update sends >50 ids in one call                                             | `App.tsx`                     | Fixed                       |
 | 2   | Missing request cancellation causes search race conditions and stale UI           | `useAssets.ts`                |                             |
 | 3   | Search input fires requests on every keystroke (no debounce), tripping rate limit | `App.tsx`                     |                             |
 | 4   | Grid lacks virtualization/pagination; renders all fetched items at once           | `AssetGrid.tsx`               | Fixed                       |
 | 5   | Selection state changes re-render the entire grid unnecessarily                   | `App.tsx` / `AssetGrid.tsx`   | Fixed                       |
-| 6   | Successful asset edits do not optimistically update the grid                      | `AssetDetail.tsx` / `App.tsx` |                             |
+| 6   | Successful asset edits do not optimistically update the grid                      | `AssetDetail.tsx` / `App.tsx` | Fixed                       |
 | 7   | Grid is inaccessible via keyboard (no tabindex, no key handlers)                  | `AssetGrid.tsx`               |                             |
 | 8   | Missing thumbnails (`hasThumbnail: false`) cause broken images/layout shifts      | `AssetGrid.tsx`               | Fixed                       |
 | 9   | API errors are flattened into strings; no structural error handling or retries    | `api/client.ts`               |                             |
@@ -63,6 +63,16 @@ six of these is about right.
 - **Why:** Responsive wrapping grids (using `auto-fill`) are notoriously difficult to virtualize because the column count changes on window resize. `react-virtuoso` natively handles responsive grids with zero math required, significantly reducing complexity and potential bugs.
 
 **Optimistic updates and rollback**
+
+- **Did:** Instantly mutated the React Query cache using `setQueriesData` before making network requests, and manually reverted only the failed IDs when a `207 Multi-Status` response occurred.
+- **Rejected:** Using React 19's `useOptimistic` hook, or forcing a full cache invalidation/refetch on partial failures.
+- **Why:** `useOptimistic` requires local state synchronization which conflicts with React Query's global cache architecture. Directly mutating the cache guarantees that every component (grid, detail panel) instantly reflects the changes. For partial rollbacks, a full refetch would waste bandwidth and cause UI layout shifts, whereas precisely reverting only the failed IDs is highly efficient and seamless.
+
+**409 Version Conflict Handling**
+
+- **Did:** Displayed a user-friendly error with a "Reload Latest Version" button inside the Detail Panel instead of automatically overwriting.
+- **Rejected:** Automatically force-overwriting the asset with the user's new status.
+- **Why:** If another user archived the asset or changed critical metadata, silently overwriting it with a new status (like "Approved") could violate business rules. Forcing the user to pull the latest state first ensures they make an informed decision based on the newest data.
 
 **Retry and backoff policy**
 

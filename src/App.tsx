@@ -40,6 +40,7 @@ export function App() {
   const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [retryStatus, setRetryStatus] = useState<AssetStatus | null>(null);
 
   // Debounce search input to avoid hitting rate limit
   useEffect(() => {
@@ -196,10 +197,16 @@ export function App() {
         // Auto-select only the retryable ones for the user to try again
         setSelectedIds(new Set(retryableFailures.map((f) => f.id)));
         setNotice(
-          `Updated ${totalApplied}. Failed ${failures.length} (${legalHoldCount} locked by legal-hold, ${retryableFailures.length} transient errors re-selected for retry).`,
+          `Updated ${totalApplied}. Failed ${failures.length} (${legalHoldCount} locked by legal-hold, ${retryableFailures.length} transient errors re-selected).`,
         );
+        if (retryableFailures.length > 0) {
+          setRetryStatus(next);
+        } else {
+          setRetryStatus(null);
+        }
       } else {
         setNotice(`${totalApplied} updated successfully.`);
+        setRetryStatus(null);
       }
     } catch (err) {
       // Full network failure: Rollback EVERYTHING
@@ -219,11 +226,22 @@ export function App() {
         };
       });
       setNotice(err instanceof Error ? err.message : "Bulk update failed");
+      setRetryStatus(null);
     }
   }
 
-  function handleSaved(_asset: Asset) {
-    // The list is not told that anything changed, so it shows stale rows.
+  function handleSaved(asset: Asset) {
+    // Instantly update the grid cache with the newly saved asset from the detail panel
+    queryClient.setQueriesData({ queryKey: ["assets"] }, (oldData: any) => {
+      if (!oldData) return oldData;
+      return {
+        ...oldData,
+        pages: oldData.pages.map((page: any) => ({
+          ...page,
+          items: page.items.map((i: Asset) => (i.id === asset.id ? asset : i)),
+        })),
+      };
+    });
   }
 
   return (
@@ -292,7 +310,19 @@ export function App() {
         </div>
       )}
 
-      {notice && <p className="notice">{notice}</p>}
+      {notice && (
+        <div
+          className="notice"
+          style={{ display: "flex", gap: "16px", alignItems: "center" }}
+        >
+          <p style={{ margin: 0 }}>{notice}</p>
+          {retryStatus && (
+            <button onClick={() => applyBulkStatus(retryStatus)}>
+              Retry Failed
+            </button>
+          )}
+        </div>
+      )}
 
       <main className="content">
         {error ? (

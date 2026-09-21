@@ -1,9 +1,14 @@
-import { useEffect, useState } from 'react';
-import { getAsset, thumbnailUrl, updateAsset } from '@/api/client';
-import { formatBytes, formatDate, formatDuration, statusLabel } from '@/lib/format';
-import type { Asset, AssetStatus } from '@/lib/types';
+import { useEffect, useState } from "react";
+import { getAsset, thumbnailUrl, updateAsset } from "@/api/client";
+import {
+  formatBytes,
+  formatDate,
+  formatDuration,
+  statusLabel,
+} from "@/lib/format";
+import type { Asset, AssetStatus } from "@/lib/types";
 
-const STATUSES: AssetStatus[] = ['draft', 'in_review', 'approved', 'archived'];
+const STATUSES: AssetStatus[] = ["draft", "in_review", "approved", "archived"];
 
 interface Props {
   id: string;
@@ -19,25 +24,47 @@ export function AssetDetail({ id, onClose, onSaved }: Props) {
   const [asset, setAsset] = useState<Asset | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [conflict, setConflict] = useState(false);
 
   useEffect(() => {
     setAsset(null);
     setError(null);
+    setConflict(false);
     getAsset(id)
       .then(setAsset)
-      .catch((err: unknown) => setError(err instanceof Error ? err.message : 'Load failed'));
+      .catch((err: unknown) =>
+        setError(err instanceof Error ? err.message : "Load failed"),
+      );
   }, [id]);
+
+  function handleReload() {
+    setConflict(false);
+    setError(null);
+    getAsset(id)
+      .then(setAsset)
+      .catch((err: unknown) =>
+        setError(err instanceof Error ? err.message : "Load failed"),
+      );
+  }
 
   async function setStatus(status: AssetStatus) {
     if (!asset) return;
     setSaving(true);
     setError(null);
+    setConflict(false);
     try {
       const updated = await updateAsset(asset.id, asset.version, { status });
       setAsset(updated);
       onSaved(updated);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Save failed');
+    } catch (err: any) {
+      if (err?.status === 409 || err?.code === "version_conflict") {
+        setConflict(true);
+        setError(
+          "This asset was modified by someone else since you opened it.",
+        );
+      } else {
+        setError(err instanceof Error ? err.message : "Save failed");
+      }
     } finally {
       setSaving(false);
     }
@@ -50,8 +77,19 @@ export function AssetDetail({ id, onClose, onSaved }: Props) {
         <button onClick={onClose}>Close</button>
       </div>
 
-      {error && <p className="error">{error}</p>}
-      {!asset && !error && <p className="muted">Loading…</p>}
+      {error && (
+        <div className="error">
+          <p style={{ margin: "0 0 8px" }}>{error}</p>
+          {conflict && (
+            <button onClick={handleReload}>Reload Latest Version</button>
+          )}
+        </div>
+      )}
+      {!asset && !error && (
+        <p className="muted" style={{ padding: "0 16px" }}>
+          Loading...
+        </p>
+      )}
 
       {asset && (
         <div className="panel__body">
