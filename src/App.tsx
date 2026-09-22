@@ -42,6 +42,33 @@ export function App() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [retryStatus, setRetryStatus] = useState<AssetStatus | null>(null);
+  const [announcement, setAnnouncement] = useState<string>("");
+
+  // Pass debouncedQ instead of q to prevent excessive API calls
+  const {
+    items,
+    total,
+    loading,
+    error,
+    hasNextPage,
+    fetchNextPage,
+    isFetchingNextPage,
+  } = useAssets({
+    q: debouncedQ,
+    status: status.length > 0 ? status : undefined,
+    sort,
+  });
+
+  // Screen reader announcements
+  useEffect(() => {
+    if (notice) {
+      setAnnouncement(notice);
+    } else if (error) {
+      setAnnouncement(`Error: ${error}`);
+    } else if (!loading) {
+      setAnnouncement(`Showing ${total} assets.`);
+    }
+  }, [notice, error, loading, total]);
 
   // Debounce search input to avoid hitting rate limit
   useEffect(() => {
@@ -61,22 +88,6 @@ export function App() {
       : window.location.pathname;
     window.history.replaceState(null, "", newUrl);
   }, [debouncedQ, status, sort]);
-
-  // Pass debouncedQ instead of q to prevent excessive API calls
-  const {
-    items,
-    total,
-    loading,
-    error,
-    hasNextPage,
-    fetchNextPage,
-    isFetchingNextPage,
-  } = useAssets({
-    q: debouncedQ,
-    status,
-    sort,
-    limit: 24,
-  });
 
   function toggleSelect(id: string, shiftKey: boolean = false) {
     if (shiftKey && lastSelectedId) {
@@ -249,6 +260,9 @@ export function App() {
 
   return (
     <div className="app">
+      <div aria-live="polite" className="visually-hidden">
+        {announcement}
+      </div>
       {isOffline && (
         <div
           style={{
