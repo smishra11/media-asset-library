@@ -44,12 +44,21 @@ function sleep(ms: number, signal?: AbortSignal | null): Promise<void> {
   return new Promise((resolve, reject) => {
     if (signal?.aborted)
       return reject(new DOMException("Aborted", "AbortError"));
-    const timer = setTimeout(resolve, ms);
+
+    let timer: ReturnType<typeof setTimeout>;
+
+    const abortHandler = () => {
+      clearTimeout(timer);
+      reject(new DOMException("Aborted", "AbortError"));
+    };
+
+    timer = setTimeout(() => {
+      if (signal) signal.removeEventListener("abort", abortHandler);
+      resolve();
+    }, ms);
+
     if (signal) {
-      signal.addEventListener("abort", () => {
-        clearTimeout(timer);
-        reject(new DOMException("Aborted", "AbortError"));
-      });
+      signal.addEventListener("abort", abortHandler);
     }
   });
 }
@@ -65,6 +74,23 @@ function isRetryable(error: unknown): boolean {
   }
   // If fetch throws a TypeError, it means the network request failed entirely (offline, DNS, etc)
   return true;
+}
+
+function getUserFriendlyMessage(
+  status: number,
+  originalMessage: string,
+): string {
+  if (status === 429)
+    return "The server is currently busy. Please try again in a few seconds.";
+  if (status === 503)
+    return "The service is temporarily down for maintenance. Please check back later.";
+  if (status >= 500)
+    return "We are experiencing internal server issues. Our team has been notified.";
+  if (status === 409)
+    return "This asset was modified by someone else. Please reload and try again.";
+  if (status === 422)
+    return "The requested update was invalid or contained missing data.";
+  return originalMessage;
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -94,7 +120,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
           ? parseInt(res.headers.get("retry-after")!, 10)
           : undefined;
 
-        throw new APIError(res.status, code, detail, retryAfter);
+        const actionableMessage = getUserFriendlyMessage(res.status, detail);
+        throw new APIError(res.status, code, actionableMessage, retryAfter);
       }
       return res.json() as Promise<T>;
     } catch (err) {

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { getAsset, thumbnailUrl, updateAsset } from "@/api/client";
+import { useOffline } from "@/features/assets/useOffline";
 import {
   formatBytes,
   formatDate,
@@ -25,6 +26,7 @@ export function AssetDetail({ id, onClose, onSaved }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [conflict, setConflict] = useState(false);
+  const isOffline = useOffline();
 
   useEffect(() => {
     setAsset(null);
@@ -137,7 +139,7 @@ export function AssetDetail({ id, onClose, onSaved }: Props) {
             {STATUSES.map((status) => (
               <button
                 key={status}
-                disabled={saving || status === asset.status}
+                disabled={saving || status === asset.status || isOffline}
                 onClick={() => setStatus(status)}
               >
                 {statusLabel(status)}

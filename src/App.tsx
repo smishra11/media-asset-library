@@ -4,6 +4,7 @@ import { bulkSetStatus } from "@/api/client";
 import { AssetDetail } from "@/features/assets/AssetDetail";
 import { AssetGrid } from "@/features/assets/AssetGrid";
 import { useAssets } from "@/features/assets/useAssets";
+import { useOffline } from "@/features/assets/useOffline";
 import { statusLabel } from "@/lib/format";
 import type { Asset, AssetStatus, AssetQuery } from "@/lib/types";
 
@@ -244,8 +245,23 @@ export function App() {
     });
   }
 
+  const isOffline = useOffline();
+
   return (
     <div className="app">
+      {isOffline && (
+        <div
+          style={{
+            background: "#d93025",
+            color: "white",
+            padding: "8px",
+            textAlign: "center",
+            fontWeight: "bold",
+          }}
+        >
+          You are currently offline. Some features may be unavailable.
+        </div>
+      )}
       <header className="topbar">
         <h1>MediaVault</h1>
         <input
@@ -300,7 +316,11 @@ export function App() {
         <div className="bulkbar">
           <span>{selectedIds.size} selected</span>
           {STATUSES.map((s) => (
-            <button key={s} onClick={() => applyBulkStatus(s)}>
+            <button
+              key={s}
+              onClick={() => applyBulkStatus(s)}
+              disabled={isOffline}
+            >
               Set {statusLabel(s).toLowerCase()}
             </button>
           ))}
