@@ -8,7 +8,7 @@ import {
 } from "react";
 import { VirtuosoGrid, VirtuosoGridHandle } from "react-virtuoso";
 import { thumbnailUrl } from "@/api/client";
-import { formatBytes, formatDate, statusLabel } from "@/lib/format";
+import { formatBytes, getStatusIcon, statusLabel } from "@/lib/format";
 import type { Asset } from "@/lib/types";
 
 const GridList = forwardRef<HTMLDivElement, any>(
@@ -100,14 +100,19 @@ const MemoizedAssetCard = memo(function AssetCard({
         </div>
       )}
       <div className="card__body">
-        <p className="card__name">{asset.name}</p>
-        <p className="muted">
-          {asset.kind} . {formatBytes(asset.sizeBytes)} .{" "}
-          {formatDate(asset.updatedAt)}
-        </p>
-        <span className={`pill pill--${asset.status}`}>
-          {statusLabel(asset.status)}
-        </span>
+        <h3 className="card__name">{asset.name}</h3>
+        <div className="card__meta">
+          <span>
+            {asset.kind} &bull; {formatBytes(asset.sizeBytes)}
+          </span>
+          <span className={`status-badge status-badge--${asset.status}`}>
+            {(() => {
+              const Icon = getStatusIcon(asset.status);
+              return <Icon size={14} className="status-icon" />;
+            })()}
+            <span>{statusLabel(asset.status)}</span>
+          </span>
+        </div>
       </div>
       <input
         type="checkbox"

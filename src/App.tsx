@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { Loader2, AlertCircle, SearchX } from "lucide-react";
 import { bulkSetStatus } from "@/api/client";
 import { AssetDetail } from "@/features/assets/AssetDetail";
 import { AssetGrid } from "@/features/assets/AssetGrid";
@@ -12,7 +13,7 @@ const STATUSES: AssetStatus[] = ["draft", "in_review", "approved", "archived"];
 const SORTS: Array<{ value: NonNullable<AssetQuery["sort"]>; label: string }> =
   [
     { value: "updatedAt:desc", label: "Recently updated" },
-    { value: "name:asc", label: "Name A–Z" },
+    { value: "name:asc", label: "Name A-Z" },
     { value: "sizeBytes:desc", label: "Largest first" },
     { value: "createdAt:desc", label: "Newest" },
   ];
@@ -265,108 +266,185 @@ export function App() {
       </div>
       {isOffline && (
         <div
+          className="error"
           style={{
-            background: "#d93025",
+            display: "flex",
+            justifyContent: "center",
+            gap: "8px",
+            background: "var(--danger)",
             color: "white",
-            padding: "8px",
-            textAlign: "center",
-            fontWeight: "bold",
           }}
         >
-          You are currently offline. Some features may be unavailable.
+          <strong>You are currently offline.</strong> Some actions are disabled
+          until your connection is restored.
         </div>
       )}
       <header className="topbar">
         <h1>MediaVault</h1>
         <input
-          className="search"
           type="search"
-          placeholder="Search assets"
+          className="search"
+          placeholder="Search by name or tag..."
           value={q}
           onChange={(e) => setQ(e.target.value)}
+          disabled={isOffline}
         />
-        <select
-          value={sort}
-          onChange={(e) => setSort(e.target.value as typeof sort)}
-        >
-          {SORTS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
       </header>
-
       <div className="filters">
-        {STATUSES.map((s) => (
-          <label key={s}>
-            <input
-              type="checkbox"
-              checked={status.includes(s)}
-              onChange={(e) =>
-                setStatus((prev) =>
-                  e.target.checked ? [...prev, s] : prev.filter((x) => x !== s),
-                )
-              }
-            />
-            {statusLabel(s)}
-          </label>
-        ))}
-        <span className="muted">
-          {loading && items.length === 0
-            ? "Loading…"
-            : `${items.length} of ${total.toLocaleString()} shown`}
-        </span>
-        <button
-          onClick={selectAllLoaded}
-          style={{ marginLeft: "auto" }}
-          disabled={items.length === 0}
+        <div style={{ display: "flex", gap: "16px", alignItems: "center" }}>
+          <strong>Status:</strong>
+          <div style={{ display: "flex", gap: "16px" }}>
+            {STATUSES.map((s) => (
+              <label
+                key={s}
+                style={{
+                  display: "flex",
+                  gap: "6px",
+                  alignItems: "center",
+                  cursor: "pointer",
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={status.includes(s)}
+                  onChange={(e) =>
+                    setStatus((prev) =>
+                      e.target.checked
+                        ? [...prev, s]
+                        : prev.filter((x) => x !== s),
+                    )
+                  }
+                  style={{
+                    width: "16px",
+                    height: "16px",
+                    accentColor: "var(--accent)",
+                    cursor: "pointer",
+                  }}
+                />
+                <span
+                  style={{
+                    fontSize: "var(--text-sm)",
+                    color: status.includes(s)
+                      ? "var(--ink)"
+                      : "var(--ink-soft)",
+                  }}
+                >
+                  {statusLabel(s)}
+                </span>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        <div
+          style={{
+            flex: 1,
+            display: "flex",
+            justifyContent: "flex-end",
+            alignItems: "center",
+            gap: "16px",
+          }}
         >
-          Select all loaded
-        </button>
+          <span className="muted">
+            {loading && items.length === 0
+              ? "Loading..."
+              : `${items.length} of ${total.toLocaleString()} shown`}
+          </span>
+          <button onClick={selectAllLoaded} disabled={items.length === 0}>
+            Select all loaded
+          </button>
+
+          <label style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <strong>Sort by:</strong>
+            <select
+              value={sort}
+              onChange={(e) =>
+                setSort(e.target.value as NonNullable<AssetQuery["sort"]>)
+              }
+              style={{
+                padding: "6px 12px",
+                borderRadius: "6px",
+                border: "1px solid var(--line)",
+                background: "var(--bg)",
+              }}
+            >
+              {SORTS.map((s) => (
+                <option key={s.value} value={s.value}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
       </div>
 
-      {selectedIds.size > 0 && (
-        <div className="bulkbar">
-          <span>{selectedIds.size} selected</span>
-          {STATUSES.map((s) => (
-            <button
-              key={s}
-              onClick={() => applyBulkStatus(s)}
-              disabled={isOffline}
-            >
-              Set {statusLabel(s).toLowerCase()}
-            </button>
-          ))}
-          <button onClick={() => setSelectedIds(new Set())}>
-            Clear selection
-          </button>
-        </div>
-      )}
-
       {notice && (
-        <div
-          className="notice"
-          style={{ display: "flex", gap: "16px", alignItems: "center" }}
-        >
-          <p style={{ margin: 0 }}>{notice}</p>
+        <div className="notice">
+          {notice}
           {retryStatus && (
-            <button onClick={() => applyBulkStatus(retryStatus)}>
+            <button
+              className="primary"
+              disabled={isOffline}
+              onClick={() => {
+                applyBulkStatus(retryStatus);
+              }}
+            >
               Retry Failed
             </button>
           )}
         </div>
       )}
 
+      {selectedIds.size > 0 && (
+        <div className="bulkbar">
+          <span style={{ fontWeight: 600, marginRight: "8px" }}>
+            {selectedIds.size} selected
+          </span>
+          {STATUSES.map((s) => (
+            <button
+              key={s}
+              className="primary"
+              onClick={() => applyBulkStatus(s)}
+              disabled={isOffline}
+            >
+              Set {statusLabel(s).toLowerCase()}
+            </button>
+          ))}
+          <div style={{ flex: 1 }}></div>
+          <button onClick={() => setSelectedIds(new Set())}>
+            Clear selection
+          </button>
+        </div>
+      )}
+
       <main className="content">
-        {error ? (
-          <div className="error-state">
-            <p>Failed to load assets.</p>
-            <p className="muted">{error}</p>
+        {loading && items.length === 0 ? (
+          <div className="empty">
+            <Loader2
+              size={48}
+              className="lucide-loader"
+              style={{ marginBottom: "16px", color: "#cbd5e1" }}
+            />
+            <h2>Loading assets...</h2>
+            <p>Fetching the latest media from the server.</p>
           </div>
-        ) : loading && items.length === 0 ? (
-          <div className="loading-state">
-            <p>Loading assets...</p>
+        ) : error ? (
+          <div className="empty">
+            <AlertCircle
+              size={48}
+              style={{ marginBottom: "16px", color: "var(--danger)" }}
+            />
+            <h2 style={{ color: "var(--danger)" }}>Failed to load assets</h2>
+            <p>{error}</p>
+          </div>
+        ) : items.length === 0 ? (
+          <div className="empty">
+            <SearchX
+              size={48}
+              style={{ marginBottom: "16px", color: "#cbd5e1" }}
+            />
+            <h2>No assets found</h2>
+            <p>Try adjusting your search query or filters.</p>
           </div>
         ) : (
           <AssetGrid

@@ -6,6 +6,7 @@ import {
   formatDate,
   formatDuration,
   statusLabel,
+  getStatusIcon,
 } from "@/lib/format";
 import type { Asset, AssetStatus } from "@/lib/types";
 
@@ -119,6 +120,16 @@ export function AssetDetail({ id, onClose, onSaved }: Props) {
           <img className="panel__thumb" src={thumbnailUrl(asset.id)} alt="" />
           <h3>{asset.name}</h3>
           <dl className="facts">
+            <dt>Status</dt>
+            <dd>
+              <span className={`status-badge status-badge--${asset.status}`}>
+                {(() => {
+                  const Icon = getStatusIcon(asset.status);
+                  return <Icon size={14} className="status-icon" />;
+                })()}
+                <span>{statusLabel(asset.status)}</span>
+              </span>
+            </dd>
             <dt>Id</dt>
             <dd>{asset.id}</dd>
             <dt>Kind</dt>
