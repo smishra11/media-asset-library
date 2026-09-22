@@ -6,7 +6,7 @@ chose not to do something.
 
 ## Video walkthrough
 
-Paste your Loom (or equivalent) link here. 5-10 minutes.
+https://drive.google.com/file/d/1x7GsjQyMq43c5UEJ4blDuWs5TYfgmbvC/view?usp=sharing
 
 **Link:**
 
