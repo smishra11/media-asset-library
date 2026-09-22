@@ -207,14 +207,20 @@ export function AssetGrid({
     [assets, onToggleSelect, onOpen],
   );
 
+  const previousActiveId = useRef(activeId);
   // When activeId (detail panel open/close) changes, if it closes, restore focus to the card
   useEffect(() => {
-    if (activeId === null && assets.length > 0) {
+    if (
+      previousActiveId.current !== null &&
+      activeId === null &&
+      assets.length > 0
+    ) {
       const el = document.getElementById(
         `asset-card-${assets[focusedIndex]?.id}`,
       );
       if (el) el.focus();
     }
+    previousActiveId.current = activeId;
   }, [activeId, focusedIndex, assets]);
 
   if (assets.length === 0) return null;
@@ -244,7 +250,10 @@ export function AssetGrid({
           isActive={activeId === asset.id}
           isFocused={focusedIndex === index}
           onToggleSelect={onToggleSelect}
-          onOpen={onOpen}
+          onOpen={(id) => {
+            setFocusedIndex(index);
+            onOpen(id);
+          }}
           onKeyDown={handleKeyDown}
         />
       )}

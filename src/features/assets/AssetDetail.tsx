@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { getAsset, thumbnailUrl, updateAsset } from "@/api/client";
 import { useOffline } from "@/features/assets/useOffline";
 import {
@@ -28,7 +28,20 @@ export function AssetDetail({ id, onClose, onSaved }: Props) {
   const [conflict, setConflict] = useState(false);
   const isOffline = useOffline();
 
+  const closeBtnRef = useRef<HTMLButtonElement>(null);
+
   useEffect(() => {
+    // Focus the close button when the panel opens or the ID changes
+    closeBtnRef.current?.focus();
+
+    // Listen for Escape key to close the panel
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        onClose();
+      }
+    }
+    document.addEventListener("keydown", handleKeyDown);
+
     setAsset(null);
     setError(null);
     setConflict(false);
@@ -37,7 +50,9 @@ export function AssetDetail({ id, onClose, onSaved }: Props) {
       .catch((err: unknown) =>
         setError(err instanceof Error ? err.message : "Load failed"),
       );
-  }, [id]);
+
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [id, onClose]);
 
   function handleReload() {
     setConflict(false);
@@ -76,7 +91,13 @@ export function AssetDetail({ id, onClose, onSaved }: Props) {
     <aside className="panel">
       <div className="panel__head">
         <h2>Asset detail</h2>
-        <button onClick={onClose}>Close</button>
+        <button
+          ref={closeBtnRef}
+          onClick={onClose}
+          aria-label="Close detail panel"
+        >
+          Close
+        </button>
       </div>
 
       {error && (
