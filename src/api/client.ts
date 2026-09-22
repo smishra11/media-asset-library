@@ -37,28 +37,95 @@ export class APIError extends Error {
   }
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(path, {
-    ...init,
-    headers: { "content-type": "application/json", ...(init?.headers ?? {}) },
-  });
-  if (!res.ok) {
-    let detail = res.statusText;
-    let code = "unknown";
-    try {
-      const body = await res.json();
-      detail = body?.error?.message ?? detail;
-      code = body?.error?.code ?? code;
-    } catch {
-      /* response was not JSON */
-    }
-    const retryAfter = res.headers.has("retry-after")
-      ? parseInt(res.headers.get("retry-after")!, 10)
-      : undefined;
+const MAX_RETRIES = 3;
+const BASE_DELAY_MS = 1000;
 
-    throw new APIError(res.status, code, detail, retryAfter);
+function sleep(ms: number, signal?: AbortSignal | null): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted)
+      return reject(new DOMException("Aborted", "AbortError"));
+    const timer = setTimeout(resolve, ms);
+    if (signal) {
+      signal.addEventListener("abort", () => {
+        clearTimeout(timer);
+        reject(new DOMException("Aborted", "AbortError"));
+      });
+    }
+  });
+}
+
+function isRetryable(error: unknown): boolean {
+  if (error instanceof APIError) {
+    // Structurally deny retries for client errors and conflicts
+    if (error.status >= 400 && error.status < 500 && error.status !== 429) {
+      return false; // e.g. 400, 401, 403, 404, 409, 422
+    }
+    // Retry 429 (Too Many Requests) and 5xx (Server Errors)
+    return error.status === 429 || error.status >= 500;
   }
-  return res.json() as Promise<T>;
+  // If fetch throws a TypeError, it means the network request failed entirely (offline, DNS, etc)
+  return true;
+}
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  let attempt = 0;
+
+  while (true) {
+    try {
+      const res = await fetch(path, {
+        ...init,
+        headers: {
+          "content-type": "application/json",
+          ...(init?.headers ?? {}),
+        },
+      });
+
+      if (!res.ok) {
+        let detail = res.statusText;
+        let code = "unknown";
+        try {
+          const body = await res.json();
+          detail = body?.error?.message ?? detail;
+          code = body?.error?.code ?? code;
+        } catch {
+          /* response was not JSON */
+        }
+        const retryAfter = res.headers.has("retry-after")
+          ? parseInt(res.headers.get("retry-after")!, 10)
+          : undefined;
+
+        throw new APIError(res.status, code, detail, retryAfter);
+      }
+      return res.json() as Promise<T>;
+    } catch (err) {
+      // Never retry if the request was intentionally aborted by the user/React Query
+      if (
+        init?.signal?.aborted ||
+        (err instanceof DOMException && err.name === "AbortError")
+      ) {
+        throw err;
+      }
+
+      if (attempt >= MAX_RETRIES || !isRetryable(err)) {
+        throw err;
+      }
+
+      // Exponential backoff: 1s, 2s, 4s...
+      let waitTime = BASE_DELAY_MS * Math.pow(2, attempt);
+
+      // Jitter: add up to 500ms of randomness to prevent thundering herd
+      waitTime += Math.random() * 500;
+
+      // Honour Retry-After header if the server explicitly provided one
+      if (err instanceof APIError && err.retryAfter) {
+        // Retry-After is usually in seconds
+        waitTime = Math.max(waitTime, err.retryAfter * 1000);
+      }
+
+      attempt++;
+      await sleep(waitTime, init?.signal);
+    }
+  }
 }
 
 export function listAssets(
