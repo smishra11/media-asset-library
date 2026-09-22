@@ -1,4 +1,4 @@
-﻿:root {
+:root {
   /* Coherent Visual System: Colors */
   --ink: #0f172a;
   --ink-soft: #64748b;
@@ -308,7 +308,7 @@ button:disabled {
   color: var(--status-draft-text);
   border-color: #cbd5e1;
 }
-.status-badge--review {
+.status-badge--in_review {
   background: var(--status-review-bg);
   color: var(--status-review-text);
   border-color: #fde68a;

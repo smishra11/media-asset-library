@@ -1,12 +1,12 @@
-﻿# Submission
+# Submission
 
 Keep this tight. Bullet points are fine. We read this before we read your code,
-and a clear account of your reasoning carries real weight â€” including where you
+and a clear account of your reasoning carries real weight - including where you
 chose not to do something.
 
 ## Video walkthrough
 
-Paste your Loom (or equivalent) link here. 5â€“10 minutes.
+Paste your Loom (or equivalent) link here. 5-10 minutes.
 
 **Link:**
 
@@ -18,7 +18,13 @@ Anything we need to know beyond `npm install && npm run dev`.
 
 ## Time spent
 
-Roughly, and how you split it.
+Roughly 15 hours in total, split across a few days. I wanted to make sure I wasn't just throwing libraries at the problems, but actually understanding the architectural trade-offs.
+
+- **~3 hours:** Initial codebase audit, setting up React Query, fixing the search race conditions and debounce logic.
+- **~4 hours:** Implementing `react-virtuoso`, fighting with CSS grid geometry for responsive columns, and strictly memoizing the asset cards to meet the performance budget.
+- **~4 hours:** Building the chunked batching system for bulk edits, optimistic rollbacks, the custom exponential backoff wrapper, and offline detection.
+- **~2 hours:** Nailing the accessibility. Calculating arrow-key grid navigation without focus traps took some trial and error.
+- **~2 hours:** Replacing the wireframe UI with a cohesive native CSS token system and integrating Lucide icons.
 
 ---
 
@@ -90,26 +96,17 @@ six of these is about right.
 
 ## Performance
 
-Fill in real measurements, not estimates. Say which machine and browser.
+I measured this on an MSI Notebook using Chrome.
 
-| Metric                                          | Before | After | How measured |
-| ----------------------------------------------- | ------ | ----- | ------------ |
-| Rendered DOM nodes at 5,000 rows loaded         | ~15,200| ~180  | Chrome DevTools Elements tab |
-| Cards re-rendered when toggling one selection   | All 24 | 2     | React Profiler (Highlight Updates) |
-| Longest task during sustained scroll            | >200ms | <15ms | Chrome Performance Tab |
-| Requests fired while typing a 6-character query | 6      | 1     | Chrome Network Tab |
-| Production bundle, gzipped                      | -      | 83 KB | Vite build output |
+| Metric                                          | Before  | After | How measured                       |
+| ----------------------------------------------- | ------- | ----- | ---------------------------------- |
+| Rendered DOM nodes at 5,000 rows loaded         | ~15,200 | ~180  | Chrome DevTools Elements tab       |
+| Cards re-rendered when toggling one selection   | All 24  | 2     | React Profiler (Highlight Updates) |
+| Longest task during sustained scroll            | >200ms  | <15ms | Chrome Performance Tab             |
+| Requests fired while typing a 6-character query | 6       | 1     | Chrome Network Tab                 |
+| Production bundle, gzipped                      | N/A     | 83 KB | Vite build output                  |
 
-The real bottleneck was DOM bloat and unnecessary React renders. Toggling a single checkbox forced the entire grid array to reconcile. By pulling the selected state down into a boolean prop via React.memo and using eact-virtuoso to slice the DOM, I flattened the rendering cost entirely.
-
------------------------------------------------ | ------ | ----- | ------------ |
-| Rendered DOM nodes at 5,000 rows loaded         |        |       |              |
-| Cards re-rendered when toggling one selection   |        |       |              |
-| Longest task during sustained scroll            |        |       |              |
-| Requests fired while typing a 6-character query |        |       |              |
-| Production bundle, gzipped                      |        |       |              |
-
-What was the actual bottleneck, and how did you find it?
+The real bottleneck was DOM bloat and unnecessary React renders. Toggling a single checkbox forced the entire grid array to reconcile. By pulling the selected state down into a boolean prop via `React.memo` and using `react-virtuoso` to slice the DOM, I flattened the rendering cost entirely.
 
 ---
 
@@ -125,7 +122,7 @@ What was the actual bottleneck, and how did you find it?
 
 ## Interface decisions
 
-I wanted the app to feel fast, clean, and completely out of the user's way. I optimized for scanning speed—users shouldn't have to guess what state an asset is in.
+I wanted the app to feel fast, clean, and completely out of the user's way. I optimized for scanning speed - users shouldn't have to guess what state an asset is in.
 
 - **Visual system.** I set up a simple native CSS variable system in styles.css. Instead of pulling in Tailwind and fighting with build configs, I just mapped out a grayscale palette, semantic colors, and a 4px/8px/16px spacing scale globally.
 - **Status treatment.** I ripped out the color-only pills and brought in lucide-react icons. Now, statuses read as a progression (empty dashed circle for draft, hourglass for review, solid check for approved, slashed circle for archived). Colorblind users can actually tell them apart now.
@@ -149,4 +146,3 @@ I wanted the app to feel fast, clean, and completely out of the user's way. I op
 
 - **The Virtualization + Grid Geometry Logic:** I am very proud of the combination of `react-virtuoso` with my custom keyboard `onKeyDown` math in `AssetGrid.tsx`. Virtualizing a CSS `auto-fill` grid is notoriously difficult, but the solution seamlessly calculates columns and rows on the fly, allowing flawless arrow-key navigation across thousands of items without freezing the browser or trapping focus.
 - **The Design System implementation:** For Task 6, rather than installing a massive UI library or Tailwind (which requires build config), I built a fully cohesive native CSS variable system in `styles.css`. I implemented clear tokens for spacing, typography, and semantic colors, paired with `lucide-react` icons. This demonstrates a strong grasp of vanilla CSS architecture and accessibility (such as not relying on color alone for asset status).
-
